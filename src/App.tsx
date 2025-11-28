@@ -3,11 +3,11 @@ import {
   Sun, CloudRain, Calendar, CheckCircle, 
   MessageSquare, Coffee, Battery, Shirt, 
   ChevronRight, Wind, Umbrella, Send, X,
-  Trash2, Briefcase, User, Activity, MoreHorizontal,
+  Trash2, Briefcase, User, MoreHorizontal,
   ChevronLeft, Sparkles, Settings, ArrowUp, ArrowDown, Eye, EyeOff, Plus,
-  Bell, BellRing, Monitor, Smartphone,
-  ListTodo, Target, Plane, Dumbbell, BookOpen, Palette, ShoppingBag, Utensils, Video, Youtube, Instagram, DollarSign,
-  Mic, MicOff, FileText, Home, CheckSquare, Maximize2, Minimize2, MoveHorizontal, MoveVertical,
+  Bell, BellRing, ListTodo, Target, Plane, Dumbbell, BookOpen, Palette, ShoppingBag, 
+  Utensils, Video, Youtube, Instagram, DollarSign,
+  Mic, MicOff, FileText, Home, CheckSquare, MoveHorizontal, MoveVertical,
   Edit3, Save, ChevronLeftSquare, ChevronRightSquare, Clock, Play, Pause, RotateCcw, AlignLeft,
   Heart, Star, Smile, Lightbulb, CreditCard, RefreshCw, Music, Droplets, CloudDrizzle, Flame, Tent
 } from 'lucide-react';
@@ -84,7 +84,7 @@ interface TodoItem {
 }
 
 // --- Widget System ---
-type WidgetType = 'weather' | 'schedule' | 'mood' | 'suggestion' | 'shortcuts' | 'events' | 'todo' | 'calendar' | 'navigator' | 'voice_memo' | 'focus_timer' | 'wishlist' | 'finance' | 'quote' | 'water' | 'noise';
+type WidgetType = 'weather' | 'schedule' | 'mood' | 'suggestion' | 'shortcuts' | 'events' | 'todo' | 'calendar' | 'navigator' | 'voice_memo' | 'focus_timer' | 'wishlist' | 'finance' | 'quote' | 'water' | 'noise' | 'countdown';
 
 interface WidgetConfig {
   id: string;
@@ -156,6 +156,7 @@ const DEFAULT_SPACES: SpaceItem[] = [
 
 const DEFAULT_COUNTDOWNS: CountdownItem[] = [];
 const DEFAULT_TODOS: TodoItem[] = []; 
+const DEFAULT_SCHEDULE: TaskItem[] = [];
 
 // --- Helpers ---
 const getTodayStr = () => {
@@ -213,8 +214,6 @@ const getDaysLeft = (targetDate: string) => {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
-const DEFAULT_SCHEDULE: ScheduleItem[] = [];
-
 const MOCK_WEATHER = { temp: 24, condition: 'Cloudy', humidity: 65, location: '台北市' };
 
 const sendNotification = (title: string, body: string) => {
@@ -225,7 +224,7 @@ const sendNotification = (title: string, body: string) => {
 };
 
 // API Call
-const fetchWithRetry = async (url, options) => {
+const fetchWithRetry = async (url: string, options: any) => {
     for (let i = 0; i < 3; i++) {
         try {
             const response = await fetch(url, options);
@@ -706,7 +705,7 @@ const QuoteWidget = () => {
     );
 };
 
-// 11. Water Tracker Widget (New)
+// 11. Water Tracker Widget
 const WaterWidget = () => {
     const [count, setCount] = useState(0);
     const goal = 2000;
@@ -726,13 +725,12 @@ const WaterWidget = () => {
                 </div>
                 <button onClick={() => setCount(c => c + 1)} className="p-1 bg-sky-500 rounded-full text-white shadow-md hover:bg-sky-600"><Plus size={16}/></button>
             </div>
-            {/* Background Wave Effect */}
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-sky-200 opacity-20 rounded-b-3xl" style={{height: `${percentage/2}%`}}></div>
         </div>
     );
 };
 
-// 12. White Noise Widget (New)
+// 12. White Noise Widget
 const NoiseWidget = () => {
     const [active, setActive] = useState<string | null>(null);
     
@@ -762,7 +760,75 @@ const NoiseWidget = () => {
     );
 };
 
-// 13. Daily Detail View (Enhanced Logic)
+// 13. Voice Memo Widget
+const VoiceMemoWidget = () => {
+    const [isListening, setIsListening] = useState(false);
+    const [memo, setMemo] = useState(() => localStorage.getItem('butler_daily_memo') || '');
+    useEffect(() => { localStorage.setItem('butler_daily_memo', memo); }, [memo]);
+    const toggleListening = () => {
+        if (isListening) { setIsListening(false); } else {
+            setIsListening(true);
+            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'zh-TW';
+                recognition.onresult = (event: any) => { setMemo(prev => prev + (prev ? '\n' : '') + event.results[0][0].transcript); setIsListening(false); };
+                recognition.onerror = () => setIsListening(false);
+                recognition.start();
+            } else { alert("瀏覽器不支援"); setIsListening(false); }
+        }
+    };
+    return (
+        <div className="h-full bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col min-h-[200px]">
+            <div className="flex justify-between items-center mb-3">
+                <h3 className="font-bold text-slate-700 flex items-center gap-2"><Mic size={20} className="text-pink-500"/> 每日碎碎念</h3>
+                <button onClick={toggleListening} className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{isListening ? <MicOff size={16} /> : <Mic size={16} />}</button>
+            </div>
+            <textarea className="flex-1 w-full resize-none bg-slate-50 rounded-xl p-3 text-sm text-slate-700 border-none focus:ring-2 focus:ring-indigo-100 custom-scrollbar" placeholder="按麥克風說：今天要記得..." value={memo} onChange={(e) => setMemo(e.target.value)} />
+            <div className="text-[10px] text-slate-400 mt-2 text-right">僅儲存於此</div>
+        </div>
+    );
+};
+
+// 14. Countdown Widget
+const CountdownWidget = ({ items, onComplete }: { items: CountdownItem[], onComplete: (id: string) => void }) => {
+    const activeItems = items.filter(i => !i.completed);
+    return (
+        <div className="h-full bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col min-h-[200px]">
+            <div className="flex justify-between items-center mb-3"><h3 className="font-bold text-slate-700 flex items-center gap-2"><Target size={20} className="text-red-500"/> 倒數目標</h3><span className="text-[10px] text-slate-400">點擊勾選完成</span></div>
+            <div className="space-y-3 overflow-y-auto flex-1 custom-scrollbar pr-1">
+                {activeItems.length === 0 ? <div className="text-center text-slate-400 text-xs mt-10">無進行中目標</div> : activeItems.map(item => {
+                    const daysLeft = getDaysLeft(item.targetDate);
+                    return (
+                        <div key={item.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 group">
+                            <div className="flex flex-col"><span className="text-sm font-bold text-slate-700">{item.title}</span><div className="flex gap-2 items-center mt-1"><span className="text-[10px] text-slate-400">{item.targetDate}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-full ${item.tag === '私人' ? 'bg-yellow-100 text-yellow-700' : item.tag === '工作' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>{item.tag}</span></div></div>
+                            <div className="flex items-center gap-3"><div className="flex flex-col items-end"><span className={`text-xl font-bold ${daysLeft <= 7 ? 'text-red-500' : 'text-indigo-600'}`}>{daysLeft}</span><span className="text-[10px] text-slate-400">天</span></div><button onClick={() => onComplete(item.id)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-emerald-100 text-emerald-600 rounded-full hover:bg-emerald-200 transition-all"><CheckSquare size={14} /></button></div>
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    );
+};
+
+// 15. Todo Widget
+const TodoWidget = ({ items, onToggle }: { items: TodoItem[], onToggle: (id: string) => void }) => {
+    return (
+        <div className="h-full bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col min-h-[200px]">
+             <div className="flex justify-between items-center mb-3"><h3 className="font-bold text-slate-700 flex items-center gap-2"><ListTodo size={20} className="text-emerald-500"/> 夢想清單</h3><span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500">有時間就做✅</span></div>
+            <div className="space-y-2 overflow-y-auto flex-1 custom-scrollbar">
+                {items.map(item => (
+                    <div key={item.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer" onClick={() => onToggle(item.id)}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${item.completed ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>{item.completed && <CheckCircle size={14} className="text-white" />}</div>
+                        <div className="flex-1"><div className={`text-sm font-medium ${item.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{item.title}</div><div className="flex gap-2 mt-0.5"><span className="text-[10px] text-slate-400">{item.tag}</span>{item.priority === '高' && <span className="text-[10px] text-red-500 bg-red-50 px-1 rounded">High</span>}</div></div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// 16. Daily Detail View (Enhanced Logic)
 const DailyDetailView = ({ 
     tasks, 
     events,
@@ -802,7 +868,7 @@ const DailyDetailView = ({
     };
 
     const handleAddTask = (title: string, type: 'routine'|'adhoc' = 'adhoc') => {
-        const newTask: TaskItem = { id: Date.now().toString() + Math.random(), title, completed: false, type, date: currentDate };
+        const newTask: TaskItem = { id: String(Date.now() + Math.random()), title, completed: false, type, date: currentDate };
         onUpdateTasks([...tasks, newTask]);
     };
 
@@ -995,8 +1061,8 @@ const App = () => {
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
 
   // States
-  const [layoutMobile, setLayoutMobile] = useState<WidgetConfig[]>(() => { try { return JSON.parse(localStorage.getItem('butler_layout_mobile_v10') || '') || DEFAULT_MOBILE_LAYOUT; } catch { return DEFAULT_MOBILE_LAYOUT; }});
-  const [layoutDesktop, setLayoutDesktop] = useState<WidgetConfig[]>(() => { try { return JSON.parse(localStorage.getItem('butler_layout_desktop_v10') || '') || DEFAULT_DESKTOP_LAYOUT; } catch { return DEFAULT_DESKTOP_LAYOUT; }});
+  const [layoutMobile, setLayoutMobile] = useState<WidgetConfig[]>(() => { try { return JSON.parse(localStorage.getItem('butler_layout_mobile_v11') || '') || DEFAULT_MOBILE_LAYOUT; } catch { return DEFAULT_MOBILE_LAYOUT; }});
+  const [layoutDesktop, setLayoutDesktop] = useState<WidgetConfig[]>(() => { try { return JSON.parse(localStorage.getItem('butler_layout_desktop_v11') || '') || DEFAULT_DESKTOP_LAYOUT; } catch { return DEFAULT_DESKTOP_LAYOUT; }});
   const [hiddenWidgets, setHiddenWidgets] = useState<WidgetConfig[]>([]);
   const [isEditingLayout, setIsEditingLayout] = useState(false);
   
@@ -1068,8 +1134,8 @@ const App = () => {
   }, []);
 
   // Save Data
-  useEffect(() => { localStorage.setItem('butler_layout_mobile_v10', JSON.stringify(layoutMobile)); }, [layoutMobile]);
-  useEffect(() => { localStorage.setItem('butler_layout_desktop_v10', JSON.stringify(layoutDesktop)); }, [layoutDesktop]);
+  useEffect(() => { localStorage.setItem('butler_layout_mobile_v11', JSON.stringify(layoutMobile)); }, [layoutMobile]);
+  useEffect(() => { localStorage.setItem('butler_layout_desktop_v11', JSON.stringify(layoutDesktop)); }, [layoutDesktop]);
   useEffect(() => { localStorage.setItem('butler_events_v3', JSON.stringify(events)); }, [events]);
   useEffect(() => { localStorage.setItem('butler_daily_tasks', JSON.stringify(dailyTasks)); }, [dailyTasks]);
   useEffect(() => { localStorage.setItem('butler_daily_records', JSON.stringify(dailyRecords)); }, [dailyRecords]);
@@ -1150,7 +1216,7 @@ const App = () => {
   };
 
   const handleAddEvent = (title: string, date: string) => {
-      setEvents(prev => [...prev, { id: Date.now().toString(), title, startDate: date, type: 'personal', completed: false }]);
+      setEvents(prev => [...prev, { id: String(Date.now()), title, startDate: date, type: 'personal', completed: false }]);
   };
   const handleUpdateEvent = (updatedEvent: EventItem) => {
       setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
@@ -1161,17 +1227,17 @@ const App = () => {
       setEditingEvent(null);
   };
   
-  const handleAddWish = (title: string) => setWishes(prev => [...prev, { id: Date.now().toString(), title, completed: false }]);
+  const handleAddWish = (title: string) => setWishes(prev => [...prev, { id: String(Date.now()), title, completed: false }]);
   const handleToggleWish = (id: string) => setWishes(prev => prev.map(w => w.id === id ? { ...w, completed: !w.completed } : w));
   const handleDeleteWish = (id: string) => setWishes(prev => prev.filter(w => w.id !== id));
 
-  const handleAddExpense = (title: string, amount: number) => setExpenses(prev => [...prev, { id: Date.now().toString(), title, amount, date: getTodayStr() }]);
+  const handleAddExpense = (title: string, amount: number) => setExpenses(prev => [...prev, { id: String(Date.now()), title, amount, date: getTodayStr() }]);
 
   const handleToggleTodo = (id: string) => setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   const handleCompleteCountdown = (id: string) => { if(confirm('確定完成？')) setCountdowns(countdowns.map(c => c.id === id ? { ...c, completed: true } : c)); };
 
   const handleAcceptSuggestions = (suggestions: Suggestion[]) => {
-    const newItems = suggestions.map(s => ({ id: Date.now() + Math.random(), title: s.title, completed: false, type: 'adhoc' as const, date: getTodayStr() }));
+    const newItems = suggestions.map(s => ({ id: String(Date.now() + Math.random()), title: s.title, completed: false, type: 'adhoc' as const, date: getTodayStr() }));
     setDailyTasks(prev => [...prev, ...newItems]);
     setChatHistory(prev => [...prev, { role: 'system', content: `已加入 ${suggestions.length} 筆建議到待辦。` }]);
   };
@@ -1193,7 +1259,7 @@ const App = () => {
               reply = `沒問題，已幫您將「${title || '新行程'}」安排在 ${dateStr} 的行程表中。`;
           } else if (text.includes('代辦') || text.includes('要買') || text.includes('要做')) {
               const title = text.replace(/代辦|要買|要做/g, '').trim();
-              setDailyTasks(prev => [...prev, { id: Date.now().toString(), title, completed: false, type: 'adhoc', date: getTodayStr() }]);
+              setDailyTasks(prev => [...prev, { id: String(Date.now()), title, completed: false, type: 'adhoc', date: getTodayStr() }]);
               reply = `收到，已將「${title}」加入今日的代辦清單。`;
           } else {
               reply = '我聽到了。您可以告訴我「明天要去開會」或「提醒我買牛奶」。';
